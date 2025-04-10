@@ -1,5 +1,5 @@
 services:
-  execution:
+  execution-base:
     build:
       context: .
       dockerfile: ${CLIENT}/Dockerfile
@@ -13,19 +13,27 @@ services:
     volumes:
         - ${HOST_DATA_DIR}:/data
     env_file:
-      - ${NETWORK_ENV:?.env.mainnet}  # Requires NETWORK_ENV to be set, defaults to mainnet
-  node:
+     - .env.mainnet
+    networks:
+      - eth-docker_default
+  node-base:
     build:
       context: .
       dockerfile: ${CLIENT}/Dockerfile
     depends_on:
-      - execution
+      - execution-base
     ports:
       - "7545:8545"     # RPC
       - "9222:9222"     # P2P TCP
-      - "9222:9222/udp" # P2P UDP
+      - "9222:9222/udp" # P2P UDP 
       - "7300:7300"     # metrics
       - "6060:6060"     # pprof
     command: [ "bash", "./op-node-entrypoint" ]
     env_file:
-      - ${NETWORK_ENV:?.env.mainnet}  # Requires NETWORK_ENV to be set, defaults to mainnet
+     - .env.mainnet
+    networks:
+      - eth-docker_default
+
+networks:
+  eth-docker_default:
+    external: true
