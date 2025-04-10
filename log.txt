@@ -1,0 +1,331 @@
+#0 building with "default" instance using docker driver
+
+#1 [base-node2 internal] load build definition from Dockerfile
+#1 transferring dockerfile: 1.61kB done
+#1 DONE 0.0s
+
+#2 [base-node2 internal] load metadata for docker.io/library/golang:1.22
+#2 DONE 1.4s
+
+#3 [base-node2 internal] load metadata for docker.io/library/ubuntu:22.04
+#3 DONE 1.4s
+
+#4 [base-node2 internal] load .dockerignore
+#4 transferring context: 79B done
+#4 DONE 0.0s
+
+#5 [base-node2 stage-2 1/9] FROM docker.io/library/ubuntu:22.04@sha256:bd01a6d8f34e0bc273d88e30547a0f3633875a0d1902fd39d6d1ad5aca123868
+#5 DONE 0.0s
+
+#6 [base-node2 geth 1/5] FROM docker.io/library/golang:1.22@sha256:1cf6c45ba39db9fd6db16922041d074a63c935556a05c5ccb62d181034df7f02
+#6 DONE 0.0s
+
+#7 [base-node2 internal] load build context
+#7 transferring context: 213B done
+#7 DONE 0.0s
+
+#8 [base-node2 geth 4/5] RUN git clone https://github.com/ethereum-optimism/op-geth.git --branch v1.101503.2 --single-branch . &&     git switch -c branch-v1.101503.2 &&     bash -c '[ "$(git rev-parse HEAD)" = "$COMMIT" ]'
+#8 CACHED
+
+#9 [base-node2 stage-2 5/9] COPY --from=op /app/op-node/bin/op-node ./
+#9 CACHED
+
+#10 [base-node2 op 6/6] RUN cd op-node &&     go mod download &&     go build -o bin/op-node ./cmd/main.go
+#10 CACHED
+
+#11 [base-node2 geth 3/5] RUN apt-get update &&     apt-get install -y     build-essential
+#11 CACHED
+
+#12 [base-node2 stage-2 6/9] COPY --from=geth /app/build/bin/geth ./
+#12 CACHED
+
+#13 [base-node2 geth 5/5] RUN go run build/ci.go install -static ./cmd/geth
+#13 CACHED
+
+#14 [base-node2 geth 2/5] WORKDIR /app
+#14 CACHED
+
+#15 [base-node2 stage-2 8/9] COPY geth/geth-entrypoint ./execution-entrypoint
+#15 CACHED
+
+#16 [base-node2 op 3/6] RUN git clone https://github.com/ethereum-optimism/optimism.git --branch v1.13.0 --single-branch . &&     git switch -c branch-v1.13.0 &&     bash -c '[ "$(git rev-parse HEAD)" = "$COMMIT" ]'
+#16 CACHED
+
+#17 [base-node2 op 4/6] RUN apt-get update &&     apt-get install -y     build-essential     make     gcc     git
+#17 CACHED
+
+#18 [base-node2 stage-2 2/9] RUN apt-get update &&     apt-get install -y jq curl supervisor &&     rm -rf /var/lib/apt/lists
+#18 CACHED
+
+#19 [base-node2 stage-2 7/9] COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+#19 CACHED
+
+#20 [base-node2 stage-2 4/9] WORKDIR /app
+#20 CACHED
+
+#21 [base-node2 op 5/6] COPY geth/gossip/gossip.go /app/op-node/p2p/gossip.go
+#21 CACHED
+
+#22 [base-node2 stage-2 3/9] RUN mkdir -p /var/log/supervisor
+#22 CACHED
+
+#23 [base-node2 stage-2 9/9] COPY op-node-entrypoint .
+#23 CACHED
+
+#24 [base-node2] exporting to image
+#24 exporting layers done
+#24 writing image sha256:18dfa41b0e9892c8f37b7f3000a75c959f4f4ffbd7e900339de5a8ab97eb9ea8 done
+#24 naming to docker.io/library/node-base-node2 done
+#24 DONE 0.0s
+
+#25 [base-node2] resolving provenance for metadata file
+#25 DONE 0.0s
+#0 building with "default" instance using docker driver
+
+#1 [base-node2 internal] load build definition from Dockerfile
+#1 transferring dockerfile: 1.61kB done
+#1 DONE 0.0s
+
+#2 [base-node2 internal] load metadata for docker.io/library/golang:1.22
+#2 DONE 0.7s
+
+#3 [base-node2 internal] load metadata for docker.io/library/ubuntu:22.04
+#3 DONE 0.8s
+
+#4 [base-node2 internal] load .dockerignore
+#4 transferring context: 79B done
+#4 DONE 0.0s
+
+#5 [base-node2 geth 1/5] FROM docker.io/library/golang:1.22@sha256:1cf6c45ba39db9fd6db16922041d074a63c935556a05c5ccb62d181034df7f02
+#5 DONE 0.0s
+
+#6 [base-node2 stage-2 1/9] FROM docker.io/library/ubuntu:22.04@sha256:bd01a6d8f34e0bc273d88e30547a0f3633875a0d1902fd39d6d1ad5aca123868
+#6 DONE 0.0s
+
+#7 [base-node2 internal] load build context
+#7 transferring context: 2.80kB done
+#7 DONE 0.0s
+
+#8 [base-node2 op 6/6] RUN cd op-node &&     go mod download &&     go build -o bin/op-node ./cmd/main.go
+#8 CACHED
+
+#9 [base-node2 stage-2 5/9] COPY --from=op /app/op-node/bin/op-node ./
+#9 CACHED
+
+#10 [base-node2 op 4/6] RUN apt-get update &&     apt-get install -y     build-essential     make     gcc     git
+#10 CACHED
+
+#11 [base-node2 stage-2 3/9] RUN mkdir -p /var/log/supervisor
+#11 CACHED
+
+#12 [base-node2 op 3/6] RUN git clone https://github.com/ethereum-optimism/optimism.git --branch v1.13.0 --single-branch . &&     git switch -c branch-v1.13.0 &&     bash -c '[ "$(git rev-parse HEAD)" = "$COMMIT" ]'
+#12 CACHED
+
+#13 [base-node2 stage-2 4/9] WORKDIR /app
+#13 CACHED
+
+#14 [base-node2 geth 4/5] RUN git clone https://github.com/ethereum-optimism/op-geth.git --branch v1.101503.2 --single-branch . &&     git switch -c branch-v1.101503.2 &&     bash -c '[ "$(git rev-parse HEAD)" = "$COMMIT" ]'
+#14 CACHED
+
+#15 [base-node2 geth 2/5] WORKDIR /app
+#15 CACHED
+
+#16 [base-node2 geth 5/5] RUN go run build/ci.go install -static ./cmd/geth
+#16 CACHED
+
+#17 [base-node2 geth 3/5] RUN apt-get update &&     apt-get install -y     build-essential
+#17 CACHED
+
+#18 [base-node2 stage-2 2/9] RUN apt-get update &&     apt-get install -y jq curl supervisor &&     rm -rf /var/lib/apt/lists
+#18 CACHED
+
+#19 [base-node2 op 5/6] COPY geth/gossip/gossip.go /app/op-node/p2p/gossip.go
+#19 CACHED
+
+#20 [base-node2 stage-2 6/9] COPY --from=geth /app/build/bin/geth ./
+#20 CACHED
+
+#21 [base-node2 stage-2 7/9] COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+#21 DONE 0.0s
+
+#22 [base-node2 stage-2 8/9] COPY geth/geth-entrypoint ./execution-entrypoint
+#22 DONE 0.0s
+
+#23 [base-node2 stage-2 9/9] COPY op-node-entrypoint .
+#23 DONE 0.0s
+
+#24 [base-node2] exporting to image
+#24 exporting layers 0.0s done
+#24 writing image sha256:ee62dd44d71e21632af3a82fd71424d7b09a557fd11f58be4c2afa536e61d072 done
+#24 naming to docker.io/library/node-base-node2 done
+#24 DONE 0.0s
+
+#25 [base-node2] resolving provenance for metadata file
+#25 DONE 0.0s
+#0 building with "default" instance using docker driver
+
+#1 [base-node2 internal] load build definition from Dockerfile
+#1 transferring dockerfile: 1.61kB done
+#1 DONE 0.0s
+
+#2 [base-node2 internal] load metadata for docker.io/library/golang:1.22
+#2 DONE 1.4s
+
+#3 [base-node2 internal] load metadata for docker.io/library/ubuntu:22.04
+#3 DONE 1.4s
+
+#4 [base-node2 internal] load .dockerignore
+#4 transferring context: 79B done
+#4 DONE 0.0s
+
+#5 [base-node2 geth 1/5] FROM docker.io/library/golang:1.22@sha256:1cf6c45ba39db9fd6db16922041d074a63c935556a05c5ccb62d181034df7f02
+#5 DONE 0.0s
+
+#6 [base-node2 stage-2 1/9] FROM docker.io/library/ubuntu:22.04@sha256:bd01a6d8f34e0bc273d88e30547a0f3633875a0d1902fd39d6d1ad5aca123868
+#6 DONE 0.0s
+
+#7 [base-node2 internal] load build context
+#7 transferring context: 2.47kB done
+#7 DONE 0.0s
+
+#8 [base-node2 op 6/6] RUN cd op-node &&     go mod download &&     go build -o bin/op-node ./cmd/main.go
+#8 CACHED
+
+#9 [base-node2 stage-2 4/9] WORKDIR /app
+#9 CACHED
+
+#10 [base-node2 stage-2 5/9] COPY --from=op /app/op-node/bin/op-node ./
+#10 CACHED
+
+#11 [base-node2 geth 2/5] WORKDIR /app
+#11 CACHED
+
+#12 [base-node2 stage-2 3/9] RUN mkdir -p /var/log/supervisor
+#12 CACHED
+
+#13 [base-node2 geth 3/5] RUN apt-get update &&     apt-get install -y     build-essential
+#13 CACHED
+
+#14 [base-node2 geth 4/5] RUN git clone https://github.com/ethereum-optimism/op-geth.git --branch v1.101503.2 --single-branch . &&     git switch -c branch-v1.101503.2 &&     bash -c '[ "$(git rev-parse HEAD)" = "$COMMIT" ]'
+#14 CACHED
+
+#15 [base-node2 stage-2 2/9] RUN apt-get update &&     apt-get install -y jq curl supervisor &&     rm -rf /var/lib/apt/lists
+#15 CACHED
+
+#16 [base-node2 op 5/6] COPY geth/gossip/gossip.go /app/op-node/p2p/gossip.go
+#16 CACHED
+
+#17 [base-node2 op 3/6] RUN git clone https://github.com/ethereum-optimism/optimism.git --branch v1.13.0 --single-branch . &&     git switch -c branch-v1.13.0 &&     bash -c '[ "$(git rev-parse HEAD)" = "$COMMIT" ]'
+#17 CACHED
+
+#18 [base-node2 op 4/6] RUN apt-get update &&     apt-get install -y     build-essential     make     gcc     git
+#18 CACHED
+
+#19 [base-node2 geth 5/5] RUN go run build/ci.go install -static ./cmd/geth
+#19 CACHED
+
+#20 [base-node2 stage-2 6/9] COPY --from=geth /app/build/bin/geth ./
+#20 CACHED
+
+#21 [base-node2 stage-2 7/9] COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+#21 DONE 0.0s
+
+#22 [base-node2 stage-2 8/9] COPY geth/geth-entrypoint ./execution-entrypoint
+#22 DONE 0.0s
+
+#23 [base-node2 stage-2 9/9] COPY op-node-entrypoint .
+#23 DONE 0.0s
+
+#24 [base-node2] exporting to image
+#24 exporting layers 0.0s done
+#24 writing image sha256:52874afda2b39bec5c0a7d01111bea3b343d6d009849583f79b32463f1dcb23a done
+#24 naming to docker.io/library/node-base-node2 done
+#24 DONE 0.0s
+
+#25 [base-node2] resolving provenance for metadata file
+#25 DONE 0.0s
+#0 building with "default" instance using docker driver
+
+#1 [base-node2 internal] load build definition from Dockerfile
+#1 transferring dockerfile: 1.61kB done
+#1 DONE 0.0s
+
+#2 [base-node2 internal] load metadata for docker.io/library/golang:1.22
+#2 ...
+
+#3 [base-node2 internal] load metadata for docker.io/library/ubuntu:22.04
+#3 DONE 0.7s
+
+#2 [base-node2 internal] load metadata for docker.io/library/golang:1.22
+#2 DONE 0.7s
+
+#4 [base-node2 internal] load .dockerignore
+#4 transferring context: 79B done
+#4 DONE 0.0s
+
+#5 [base-node2 geth 1/5] FROM docker.io/library/golang:1.22@sha256:1cf6c45ba39db9fd6db16922041d074a63c935556a05c5ccb62d181034df7f02
+#5 DONE 0.0s
+
+#6 [base-node2 stage-2 1/9] FROM docker.io/library/ubuntu:22.04@sha256:bd01a6d8f34e0bc273d88e30547a0f3633875a0d1902fd39d6d1ad5aca123868
+#6 DONE 0.0s
+
+#7 [base-node2 internal] load build context
+#7 transferring context: 2.70kB done
+#7 DONE 0.0s
+
+#8 [base-node2 op 6/6] RUN cd op-node &&     go mod download &&     go build -o bin/op-node ./cmd/main.go
+#8 CACHED
+
+#9 [base-node2 stage-2 3/9] RUN mkdir -p /var/log/supervisor
+#9 CACHED
+
+#10 [base-node2 stage-2 4/9] WORKDIR /app
+#10 CACHED
+
+#11 [base-node2 op 4/6] RUN apt-get update &&     apt-get install -y     build-essential     make     gcc     git
+#11 CACHED
+
+#12 [base-node2 geth 2/5] WORKDIR /app
+#12 CACHED
+
+#13 [base-node2 op 5/6] COPY geth/gossip/gossip.go /app/op-node/p2p/gossip.go
+#13 CACHED
+
+#14 [base-node2 stage-2 2/9] RUN apt-get update &&     apt-get install -y jq curl supervisor &&     rm -rf /var/lib/apt/lists
+#14 CACHED
+
+#15 [base-node2 stage-2 5/9] COPY --from=op /app/op-node/bin/op-node ./
+#15 CACHED
+
+#16 [base-node2 geth 3/5] RUN apt-get update &&     apt-get install -y     build-essential
+#16 CACHED
+
+#17 [base-node2 geth 5/5] RUN go run build/ci.go install -static ./cmd/geth
+#17 CACHED
+
+#18 [base-node2 geth 4/5] RUN git clone https://github.com/ethereum-optimism/op-geth.git --branch v1.101503.2 --single-branch . &&     git switch -c branch-v1.101503.2 &&     bash -c '[ "$(git rev-parse HEAD)" = "$COMMIT" ]'
+#18 CACHED
+
+#19 [base-node2 op 3/6] RUN git clone https://github.com/ethereum-optimism/optimism.git --branch v1.13.0 --single-branch . &&     git switch -c branch-v1.13.0 &&     bash -c '[ "$(git rev-parse HEAD)" = "$COMMIT" ]'
+#19 CACHED
+
+#20 [base-node2 stage-2 6/9] COPY --from=geth /app/build/bin/geth ./
+#20 CACHED
+
+#21 [base-node2 stage-2 7/9] COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+#21 DONE 0.0s
+
+#22 [base-node2 stage-2 8/9] COPY geth/geth-entrypoint ./execution-entrypoint
+#22 DONE 0.0s
+
+#23 [base-node2 stage-2 9/9] COPY op-node-entrypoint .
+#23 DONE 0.0s
+
+#24 [base-node2] exporting to image
+#24 exporting layers 0.0s done
+#24 writing image sha256:ddecb2347854c71dd6a2da52c401110c819ed407d36601e99c89d850333584e0 done
+#24 naming to docker.io/library/node-base-node2 done
+#24 DONE 0.0s
+
+#25 [base-node2] resolving provenance for metadata file
+#25 DONE 0.0s
