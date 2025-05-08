@@ -7,8 +7,8 @@ RPC_PORT="${RPC_PORT:-8545}"
 WS_PORT="${WS_PORT:-8546}"
 AUTHRPC_PORT="${AUTHRPC_PORT:-8551}"
 METRICS_PORT="${METRICS_PORT:-6060}"
-HOST_IP="" # put your external IP address here and open port 30303 to improve peer connectivity
-P2P_PORT="${P2P_PORT:-30303}"
+HOST_IP="" # put your external IP address here and open port 40404 to improve peer connectivity
+P2P_PORT="${P2P_PORT:-40404}"
 ADDITIONAL_ARGS=""
 OP_GETH_GCMODE="${OP_GETH_GCMODE:-full}"
 OP_GETH_SYNCMODE="${OP_GETH_SYNCMODE:-full}"
@@ -45,9 +45,9 @@ if [ "${OP_GETH_STATE_SCHEME+x}" = x ]; then
     ADDITIONAL_ARGS="$ADDITIONAL_ARGS --state.scheme=$OP_GETH_STATE_SCHEME"
 fi
 
-if [ "${OP_GETH_BOOTNODES+x}" = x ]; then
-    ADDITIONAL_ARGS="$ADDITIONAL_ARGS --bootnodes=$OP_GETH_BOOTNODES"
-fi
+# if [ "${OP_GETH_BOOTNODES+x}" = x ]; then
+#     ADDITIONAL_ARGS="$ADDITIONAL_ARGS --bootnodes=$OP_GETH_BOOTNODES"
+# fi
 
 if [ "${HOST_IP:+x}" = x ]; then
     ADDITIONAL_ARGS="$ADDITIONAL_ARGS --nat=extip:$HOST_IP"
@@ -81,10 +81,11 @@ exec ./geth \
     --rollup.halt=major \
     --op-network="$OP_NODE_NETWORK" \
     --port="$P2P_PORT" \
-    --rollup.disabletxpoolgossip=true \
+    --rollup.disabletxpoolgossip=false \
     --cache="$GETH_CACHE" \
     --cache.database="$GETH_CACHE_DATABASE" \
     --cache.gc="$GETH_CACHE_GC" \
     --cache.snapshot="$GETH_CACHE_SNAPSHOT" \
     --cache.trie="$GETH_CACHE_TRIE" \
+    --bootnodes="enode://eb2d3392b49c356a5b4c77a9060828b22657027ca0f6a826769ae4346b7e391e666d809c1af17e95728ef089fd27f64d3aa326e527a0674535c537730dd88a00@172.236.206.29:30303" \
     $ADDITIONAL_ARGS # intentionally unquoted
