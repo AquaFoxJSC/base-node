@@ -1,0 +1,28 @@
+services:
+  base-node2:
+    build:
+      context: .
+      dockerfile: geth/DockerfileCustomNode
+    container_name: base-node2
+    networks:
+      - eth-docker_default
+    volumes:
+      - ./data:/app/data
+      - ./jwt.txt:/app/jwt.txt
+      - ./jwt2.txt:/app/jwt2.txt
+    env_file:
+      - .env.mainnet
+    ports:
+      - "9224:9224"
+      - "9224:9224/udp"
+      - "8549:8547"
+      - "7302:7302"
+      - "9225:9225"
+      - "9225:9225/udp"
+      - "8550:8548"
+      - "7303:7303"
+    command: /usr/bin/supervisord
+
+networks:
+  eth-docker_default:
+    external: true
