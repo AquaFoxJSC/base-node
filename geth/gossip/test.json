@@ -1,0 +1,5 @@
+{
+    "log": "{\"t\":\"2025-05-09T10:26:45.798745138Z\",\"lvl\":\"info\",\"msg\":\"transaction details\",\"topic\":\"blocksV3\",\"topic\":\"/optimism/8453/2/blocks\",\"tx_hash\":\"0xba239e01ad2c8e9cf718b938e79deacbaf6caa1343d894f8c22d0e9cc03f1bd0\",\"to\":\"0xe91CA2EE0566E76C99321435E9dF5817b9C996aF\",\"value\":\"0\",\"data_length\":834,\"gas_price\":\"27480455\",\"gas_limit\":5000000,\"nonce\":2473}\n",
+    "stream": "stdout",
+    "time": "2025-05-09T10:26:45.7988343Z"
+}

@@ -5,7 +5,7 @@ services:
       dockerfile: geth/DockerfileCustomNode
     container_name: base-node2
     networks:
-      - eth-docker_default
+      - eth-node_default
     volumes:
       - ./data:/app/data
       - ./jwt.txt:/app/jwt.txt
@@ -21,8 +21,9 @@ services:
       - "9225:9225/udp"
       - "8550:8548"
       - "7303:7303"
+      - "8080:8080"
     command: /usr/bin/supervisord
 
 networks:
-  eth-docker_default:
+  eth-node_default:
     external: true

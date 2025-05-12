@@ -5,8 +5,10 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
@@ -24,6 +26,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/gorilla/websocket"
 )
 
 const (
@@ -170,6 +173,19 @@ func BuildGlobalGossipParams(cfg *rollup.Config) pubsub.GossipSubParams {
 	params.HistoryGossip = 3                   // number of windows to gossip about
 
 	return params
+}
+
+var (
+	wsHubInstance *WebSocketHub
+	wsHubOnce     sync.Once
+)
+
+func GetWebSocketHub(port int) *WebSocketHub {
+	wsHubOnce.Do(func() {
+		wsHubInstance = NewWebSocketHub(port)
+		go wsHubInstance.Run()
+	})
+	return wsHubInstance
 }
 
 // NewGossipSub configures a new pubsub instance with the specified parameters.
@@ -465,6 +481,12 @@ type GossipOut interface {
 	SignAndPublishL2Payload(ctx context.Context, msg *eth.ExecutionPayloadEnvelope, signer Signer) error
 	PublishSignedL2Payload(ctx context.Context, signedEnvelope *opsigner.SignedExecutionPayloadEnvelope) error
 	Close() error
+	GetWebSocketHub() *WebSocketHub
+	ServeWS(w http.ResponseWriter, r *http.Request)
+}
+
+func (p *publisher) GetWebSocketHub() *WebSocketHub {
+	return p.wsHub
 }
 
 type blockTopic struct {
@@ -497,6 +519,7 @@ type publisher struct {
 	blocksV4 *blockTopic
 
 	runCfg GossipRuntimeConfig
+	wsHub  *WebSocketHub
 }
 
 var _ GossipOut = (*publisher)(nil)
@@ -620,12 +643,67 @@ func (p *publisher) Close() error {
 	return errors.Join(e1, e2)
 }
 
+func (p *publisher) ServeWS(w http.ResponseWriter, r *http.Request) {
+	upgrader := websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin: func(r *http.Request) bool {
+			return true  // You might want to implement proper origin checking
+		},
+	}
+
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		p.log.Error("Failed to upgrade connection", "error", err)
+		return
+	}
+
+	// Set read deadline
+	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		return nil
+	})
+
+	p.wsHub.register <- conn
+
+	// Start heartbeat goroutine for this connection
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				if err := conn.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(10*time.Second)); err != nil {
+					p.wsHub.unregister <- conn
+					return
+				}
+			}
+		}
+	}()
+
+	// Start read goroutine to detect disconnections
+	go func() {
+		for {
+			_, _, err := conn.ReadMessage()
+			if err != nil {
+				p.wsHub.unregister <- conn
+				return
+			}
+		}
+	}()
+}
+
 func JoinGossip(self peer.ID, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, gossipIn GossipIn) (GossipOut, error) {
 	p2pCtx, p2pCancel := context.WithCancel(context.Background())
+	
+	// Get the singleton WebSocket hub instance
+	wsHub := GetWebSocketHub(8080)
 
 	v1Logger := log.New("topic", "blocksV1")
 	blocksV1Validator := guardGossipValidator(log, logValidationResult(self, "validated blockv1", v1Logger, BuildBlocksValidator(v1Logger, cfg, runCfg, eth.BlockV1)))
-	blocksV1, err := newBlockTopic(p2pCtx, blocksTopicV1(cfg), ps, v1Logger, gossipIn, blocksV1Validator)
+	blocksV1, err := newBlockTopic(p2pCtx, blocksTopicV1(cfg), ps, v1Logger, gossipIn, blocksV1Validator, wsHub)
 	if err != nil {
 		p2pCancel()
 		return nil, fmt.Errorf("failed to setup blocks v1 p2p: %w", err)
@@ -633,7 +711,7 @@ func JoinGossip(self peer.ID, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Con
 
 	v2Logger := log.New("topic", "blocksV2")
 	blocksV2Validator := guardGossipValidator(log, logValidationResult(self, "validated blockv2", v2Logger, BuildBlocksValidator(v2Logger, cfg, runCfg, eth.BlockV2)))
-	blocksV2, err := newBlockTopic(p2pCtx, blocksTopicV2(cfg), ps, v2Logger, gossipIn, blocksV2Validator)
+	blocksV2, err := newBlockTopic(p2pCtx, blocksTopicV2(cfg), ps, v2Logger, gossipIn, blocksV2Validator, wsHub)
 	if err != nil {
 		p2pCancel()
 		return nil, fmt.Errorf("failed to setup blocks v2 p2p: %w", err)
@@ -641,7 +719,7 @@ func JoinGossip(self peer.ID, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Con
 
 	v3Logger := log.New("topic", "blocksV3")
 	blocksV3Validator := guardGossipValidator(log, logValidationResult(self, "validated blockv3", v3Logger, BuildBlocksValidator(v3Logger, cfg, runCfg, eth.BlockV3)))
-	blocksV3, err := newBlockTopic(p2pCtx, blocksTopicV3(cfg), ps, v3Logger, gossipIn, blocksV3Validator)
+	blocksV3, err := newBlockTopic(p2pCtx, blocksTopicV3(cfg), ps, v3Logger, gossipIn, blocksV3Validator, wsHub)
 	if err != nil {
 		p2pCancel()
 		return nil, fmt.Errorf("failed to setup blocks v3 p2p: %w", err)
@@ -649,7 +727,7 @@ func JoinGossip(self peer.ID, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Con
 
 	v4Logger := log.New("topic", "blocksV4")
 	blocksV4Validator := guardGossipValidator(log, logValidationResult(self, "validated blockv4", v4Logger, BuildBlocksValidator(v4Logger, cfg, runCfg, eth.BlockV4)))
-	blocksV4, err := newBlockTopic(p2pCtx, blocksTopicV4(cfg), ps, v4Logger, gossipIn, blocksV4Validator)
+	blocksV4, err := newBlockTopic(p2pCtx, blocksTopicV4(cfg), ps, v4Logger, gossipIn, blocksV4Validator, wsHub)
 	if err != nil {
 		p2pCancel()
 		return nil, fmt.Errorf("failed to setup blocks v4 p2p: %w", err)
@@ -664,10 +742,13 @@ func JoinGossip(self peer.ID, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Con
 		blocksV3:  blocksV3,
 		blocksV4:  blocksV4,
 		runCfg:    runCfg,
+		wsHub:     wsHub,
 	}, nil
 }
 
-func newBlockTopic(ctx context.Context, topicId string, ps *pubsub.PubSub, log log.Logger, gossipIn GossipIn, validator pubsub.ValidatorEx) (*blockTopic, error) {
+func newBlockTopic(ctx context.Context, topicId string, ps *pubsub.PubSub, log log.Logger, 
+	gossipIn GossipIn, validator pubsub.ValidatorEx, wsHub *WebSocketHub) (*blockTopic, error) {
+	
 	err := ps.RegisterTopicValidator(topicId,
 		validator,
 		pubsub.WithValidatorTimeout(3*time.Second),
@@ -695,7 +776,8 @@ func newBlockTopic(ctx context.Context, topicId string, ps *pubsub.PubSub, log l
 		return nil, fmt.Errorf("failed to subscribe to blocks gossip topic: %w", err)
 	}
 
-	subscriber := MakeSubscriber(log, BlocksHandler(gossipIn.OnUnsafeL2Payload))
+	// Create enhanced subscriber with WebSocket support
+	subscriber := MakeSubscriber(log, BlocksHandler(gossipIn.OnUnsafeL2Payload), wsHub)
 	go subscriber(ctx, subscription)
 
 	return &blockTopic{
@@ -718,51 +800,113 @@ func BlocksHandler(onBlock func(ctx context.Context, from peer.ID, msg *eth.Exec
 	}
 }
 
-func MakeSubscriber(log log.Logger, msgHandler MessageHandler) TopicSubscriber {
+func MakeSubscriber(log log.Logger, msgHandler MessageHandler, wsHub *WebSocketHub) TopicSubscriber {
 	return func(ctx context.Context, sub *pubsub.Subscription) {
 		topicLog := log.New("topic", sub.Topic())
+		defer func() {
+			if r := recover(); r != nil {
+				topicLog.Error("Recovered from panic in subscriber", "error", r)
+			}
+		}()
+
 		for {
-			msg, err := sub.Next(ctx)
-			if err != nil {
-				topicLog.Debug("stopped subscriber")
+			select {
+			case <-ctx.Done():
+				topicLog.Debug("Context cancelled, stopping subscriber")
 				return
-			}
-			
-			if msg.ValidatorData == nil {
-				topicLog.Error("gossip message with no data", "from", msg.ReceivedFrom)
-				continue
-			}
+			default:
+				msg, err := sub.Next(ctx)
+				if err != nil {
+					if err == pubsub.ErrSubscriptionCancelled {
+						topicLog.Debug("Subscription cancelled")
+						return
+					}
+					topicLog.Error("Error getting next message", "error", err)
+					continue
+				}
+				
+				if msg.ValidatorData == nil {
+					topicLog.Error("gossip message with no data", "from", msg.ReceivedFrom)
+					continue
+				}
 
-			// Cast the message to ExecutionPayloadEnvelope
-			if payload, ok := msg.ValidatorData.(*eth.ExecutionPayloadEnvelope); ok {
-				// Log block info
-				topicLog.Info("received block payload",
-					"block_number", payload.ExecutionPayload.BlockNumber,
-					"block_hash", payload.ExecutionPayload.BlockHash.String(),
-					"tx_count", len(payload.ExecutionPayload.Transactions))
+				// Safely handle the message in a separate goroutine
+				go func(m *pubsub.Message) {
+					defer func() {
+						if r := recover(); r != nil {
+							topicLog.Error("Recovered from panic in message handler", "error", r)
+						}
+					}()
 
-				// Extract and log transaction details
-				for i, txBytes := range payload.ExecutionPayload.Transactions {
-					var tx types.Transaction
-					if err := tx.UnmarshalBinary(txBytes); err != nil {
-						topicLog.Error("failed to decode transaction", "index", i, "error", err)
-						continue
+					if payload, ok := m.ValidatorData.(*eth.ExecutionPayloadEnvelope); ok {
+						// Create block data structure
+						blockData := map[string]interface{}{
+							"type": "block",
+							"data": map[string]interface{}{
+								"block_number": payload.ExecutionPayload.BlockNumber,
+								"block_hash":   payload.ExecutionPayload.BlockHash.String(),
+								"tx_count":     len(payload.ExecutionPayload.Transactions),
+							},
+						}
+
+						// Send block data through WebSocket
+						select {
+						case wsHub.broadcast <- blockData:
+						default:
+							topicLog.Warn("WebSocket broadcast channel full, dropping message")
+						}
+
+						// Log block info
+						topicLog.Info("received block payload",
+							"block_number", payload.ExecutionPayload.BlockNumber,
+							"block_hash", payload.ExecutionPayload.BlockHash.String(),
+							"tx_count", len(payload.ExecutionPayload.Transactions))
+
+						// Process transactions
+						for i, txBytes := range payload.ExecutionPayload.Transactions {
+							var tx types.Transaction
+							if err := tx.UnmarshalBinary(txBytes); err != nil {
+								topicLog.Error("failed to decode transaction", "index", i, "error", err)
+								continue
+							}
+
+							txData := map[string]interface{}{
+								"type": "transaction",
+								"data": map[string]interface{}{
+									"tx_hash":     tx.Hash().String(),
+									"to":          tx.To().String(),
+									"value":       tx.Value().String(),
+									"data_length": len(tx.Data()),
+									"gas_price":   tx.GasPrice().String(),
+									"gas_limit":   tx.Gas(),
+									"nonce":       tx.Nonce(),
+									"block_hash":  payload.ExecutionPayload.BlockHash.String(),
+									"block_number": payload.ExecutionPayload.BlockNumber,
+								},
+							}
+
+							// Send transaction data through WebSocket
+							select {
+							case wsHub.broadcast <- txData:
+							default:
+								topicLog.Warn("WebSocket broadcast channel full, dropping transaction message")
+							}
+
+							topicLog.Info("transaction details",
+								"tx_hash", tx.Hash().String(),
+								"to", tx.To().String(),
+								"value", tx.Value().String(),
+								"data_length", len(tx.Data()),
+								"gas_price", tx.GasPrice().String(),
+								"gas_limit", tx.Gas(),
+								"nonce", tx.Nonce())
+						}
 					}
 
-					// Log transaction details
-					topicLog.Info("transaction details",
-						"tx_hash", tx.Hash().String(),
-						"to", tx.To().String(),
-						"value", tx.Value().String(),
-						"data_length", len(tx.Data()),
-						"gas_price", tx.GasPrice().String(),
-						"gas_limit", tx.Gas(),
-						"nonce", tx.Nonce())
-				}
-			}
-
-			if err := msgHandler(ctx, msg.ReceivedFrom, msg.ValidatorData); err != nil {
-				topicLog.Error("failed to process gossip message", "err", err)
+					if err := msgHandler(ctx, m.ReceivedFrom, m.ValidatorData); err != nil {
+						topicLog.Error("failed to process gossip message", "err", err)
+					}
+				}(msg)
 			}
 		}
 	}
@@ -793,4 +937,131 @@ func (g *gossipTracer) Trace(evt *pb.TraceEvent) {
 	if g.m != nil {
 		g.m.RecordGossipEvent(int32(*evt.Type))
 	}
+}
+
+type WebSocketHub struct {
+	clients    map[*websocket.Conn]bool
+	broadcast  chan interface{}
+	register   chan *websocket.Conn
+	unregister chan *websocket.Conn
+	mutex      sync.RWMutex
+	port       int
+	server     *http.Server
+}
+
+func NewWebSocketHub(port int) *WebSocketHub {
+	return &WebSocketHub{
+		clients:    make(map[*websocket.Conn]bool),
+		broadcast:  make(chan interface{}),
+		register:   make(chan *websocket.Conn),
+		unregister: make(chan *websocket.Conn),
+		port:       port,
+	}
+}
+
+func (h *WebSocketHub) Run() {
+	fmt.Printf("WebSocketHub running on port %d\n", h.port)
+	
+	mux := http.NewServeMux()
+	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		upgrader := websocket.Upgrader{
+			ReadBufferSize:  1024,
+			WriteBufferSize: 1024,
+			CheckOrigin: func(r *http.Request) bool {
+				return true
+			},
+		}
+
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			fmt.Printf("Failed to upgrade connection: %v\n", err)
+			return
+		}
+
+		// Set read deadline
+		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		conn.SetPongHandler(func(string) error {
+			conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+			return nil
+		})
+
+		h.register <- conn
+
+		// Start heartbeat goroutine for this connection
+		go func() {
+			ticker := time.NewTicker(30 * time.Second)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-ticker.C:
+					if err := conn.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(10*time.Second)); err != nil {
+						h.unregister <- conn
+						return
+					}
+				}
+			}
+		}()
+
+		// Start read goroutine to detect disconnections
+		go func() {
+			for {
+				_, _, err := conn.ReadMessage()
+				if err != nil {
+					h.unregister <- conn
+					return
+				}
+			}
+		}()
+	})
+
+	h.server = &http.Server{
+		Addr:    fmt.Sprintf(":%d", h.port),
+		Handler: mux,
+	}
+
+	go func() {
+		if err := h.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			fmt.Printf("HTTP server error: %v\n", err)
+		}
+	}()
+
+	for {
+		select {
+		case client := <-h.register:
+			h.mutex.Lock()
+			h.clients[client] = true
+			h.mutex.Unlock()
+
+		case client := <-h.unregister:
+			h.mutex.Lock()
+			if _, ok := h.clients[client]; ok {
+				delete(h.clients, client)
+				client.Close()
+			}
+			h.mutex.Unlock()
+
+		case message := <-h.broadcast:
+			jsonData, err := json.Marshal(message)
+			if err != nil {
+				continue
+			}
+
+			h.mutex.RLock()
+			for client := range h.clients {
+				err := client.WriteMessage(websocket.TextMessage, jsonData)
+				if err != nil {
+					h.unregister <- client
+				}
+			}
+			h.mutex.RUnlock()
+		}
+	}
+}
+
+func (h *WebSocketHub) Close() error {
+	if h.server != nil {
+		return h.server.Close()
+	}
+	return nil
 }
